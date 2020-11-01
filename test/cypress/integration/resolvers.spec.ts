@@ -35,6 +35,33 @@ describe("Resolvers", () => {
     );
   });
 
+  it("Should mock User type", () => {
+    cy.mockGraphqlOps({
+      mocks: {
+        User: () => ({
+          id: 42,
+          email: "Adrien_Toy@yahoo.com",
+          name: () => "Sheila Kohler",
+        }),
+      },
+    });
+
+    cy.visit("/");
+    cy.get("#GET_USER").click();
+    cy.get("#data").should(
+      "contain",
+      JSON.stringify({
+        user: {
+          id: 42,
+          name: "Sheila Kohler",
+          email: "Adrien_Toy@yahoo.com",
+          createdAt: new Date("2019-01-01T00:00:00.000Z"),
+          __typename: "User"
+        }
+      })
+    );
+  });
+
   it("Should throw graphql error", () => {
     cy.mockGraphqlOps({
       operations: {
