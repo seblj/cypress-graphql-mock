@@ -5,7 +5,6 @@ import { makeExecutableSchema, addMockFunctionsToSchema } from "graphql-tools";
 
 export interface MockGraphQLOptions extends SetOperationsOpts {
   schema?: string | string[] | IntrospectionQuery;
-  mocks?: CypressMockBaseTypes;
 }
 
 export interface SetOperationsOpts {
@@ -13,6 +12,7 @@ export interface SetOperationsOpts {
   endpoint?: string;
   /* Operations object. Make sure that mocks must not be wrapped with `data` property */
   operations?: Partial<CypressMockOperationTypes>;
+  mocks?: CypressMockBaseTypes;
   /* Delay for stubbed responses (in ms) */
   delay?: number;
 }
@@ -121,16 +121,9 @@ Cypress.Commands.add("mockGraphql", (options?: MockGraphQLOptions) => {
     typeDefs: schemaAsSDL(schema)
   });
 
-  addMockFunctionsToSchema({
-    schema: executableSchema,
-    mocks: {
-      ...commonMocks,
-      ...mocks
-    }
-  });
-
   let currentDelay = delay;
   let currentOps = operations;
+  let currentMocks = mocks;
 
   cy.on("window:before:load", win => {
     const originalFetch = win.fetch;
@@ -163,6 +156,14 @@ Cypress.Commands.add("mockGraphql", (options?: MockGraphQLOptions) => {
             );
         }
 
+        addMockFunctionsToSchema({
+          schema: executableSchema,
+          mocks: {
+            ...commonMocks,
+            ...currentMocks,
+          }
+        });
+
         return graphql({
           schema: executableSchema,
           source: query,
@@ -184,6 +185,10 @@ Cypress.Commands.add("mockGraphql", (options?: MockGraphQLOptions) => {
       currentOps = {
         ...currentOps,
         ...options.operations
+      };
+      currentMocks = {
+        ...currentMocks,
+        ...options.mocks,
       };
     }
   }).as(getAlias(mergedOptions));
