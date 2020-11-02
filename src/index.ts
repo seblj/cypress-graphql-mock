@@ -158,10 +158,10 @@ Cypress.Commands.add("mockGraphql", (options?: MockGraphQLOptions) => {
 
         addMockFunctionsToSchema({
           schema: executableSchema,
-          mocks: {
+          mocks: resolveMocks({
             ...commonMocks,
             ...currentMocks,
-          }
+          }),
         });
 
         return graphql({
@@ -186,10 +186,9 @@ Cypress.Commands.add("mockGraphql", (options?: MockGraphQLOptions) => {
         ...currentOps,
         ...options.operations
       };
-      currentMocks = {
-        ...currentMocks,
-        ...options.mocks,
-      };
+      if (options.mocks) {
+        currentMocks = mergeMocks(currentMocks, options.mocks);
+      }
     }
   }).as(getAlias(mergedOptions));
 });
@@ -212,6 +211,36 @@ function schemaAsSDL(schema: string | string[] | IntrospectionQuery) {
     return schema;
   }
   return printSchema(buildClientSchema(schema));
+}
+
+function resolveMocks(mocks: CypressMockBaseTypes) {
+  const asFunction = (m: any) => m instanceof Function ? m : () => m;
+  return objectMap(mocks, asFunction);
+}
+
+function mergeMocks(currentMocks: CypressMockBaseTypes, mocks: CypressMockBaseTypes) {
+  return {
+    ...currentMocks,
+    ...objectMap(mocks, (value: any, key: string) => {
+      const currentValue = (currentMocks as any)[key];
+      if (isObject(currentValue) && isObject(value)) {
+        return { ...currentValue, ...value };
+      } else {
+        return value;
+      }
+    }),
+  };
+}
+
+function isObject(what: any) {
+  return typeof what === 'object' && !Array.isArray(what);
+}
+
+function objectMap(object: any, mapFn: Function) {
+  return Object.keys(object).reduce(function(result, key) {
+    result[key] = mapFn(object[key], key)
+    return result
+  }, {} as any)
 }
 
 function getRootValue(
