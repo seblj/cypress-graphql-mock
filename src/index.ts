@@ -1,7 +1,8 @@
 /// <reference types="cypress" />
 import { graphql, IntrospectionQuery, GraphQLError } from "graphql";
 import { buildClientSchema, printSchema } from "graphql";
-import { makeExecutableSchema, addMockFunctionsToSchema } from "graphql-tools";
+import { makeExecutableSchema } from "@graphql-tools/schema";
+import { addMocksToSchema } from "@graphql-tools/mock";
 
 export interface MockGraphQLOptions extends SetOperationsOpts {
   schema?: string | string[] | IntrospectionQuery;
@@ -37,8 +38,12 @@ declare global {
   }
 }
 
-const wait = (timeout: number) => <T>(response?: T) =>
-  new Promise<T>(resolve => setTimeout(() => resolve(response), timeout));
+const wait =
+  (timeout: number) =>
+  <T>(response?: T) =>
+    new Promise<T>((resolve) =>
+      setTimeout(() => resolve(response as T), timeout),
+    );
 
 /**
  * Add .baseGraphqlMocks() to the Cypress chain. Used when we want to set the
@@ -49,7 +54,7 @@ export const setBaseGraphqlMocks = (mocks: CypressMockBaseTypes) => {
     commonMocks = mocks;
   } else {
     throw new Error(
-      `setBaseGraphqlMocks may only be called once, already called.`
+      `setBaseGraphqlMocks may only be called once, already called.`,
     );
   }
   return mocks;
@@ -64,7 +69,7 @@ export const setBaseOperationOptions = (options: CypressMockBaseTypes) => {
     commonOptions = options;
   } else {
     throw new Error(
-      `setBaseOperationOptions may only be called once, already called.`
+      `setBaseOperationOptions may only be called once, already called.`,
     );
   }
   return options;
@@ -101,31 +106,31 @@ export const setBaseOperationOptions = (options: CypressMockBaseTypes) => {
 Cypress.Commands.add("mockGraphql", (options?: MockGraphQLOptions) => {
   const mergedOptions = {
     ...(commonOptions || {}),
-    ...(options || {})
+    ...(options || {}),
   };
   const {
     endpoint = "/graphql",
     delay = 0,
     operations = {},
     mocks = {},
-    schema = undefined
+    schema = undefined,
   } = mergedOptions;
 
   if (!schema) {
     throw new Error(
-      "Schema must be provided to the mockGraphql or setBaseOperationOptions"
+      "Schema must be provided to the mockGraphql or setBaseOperationOptions",
     );
   }
 
   const executableSchema = makeExecutableSchema({
-    typeDefs: schemaAsSDL(schema)
+    typeDefs: schemaAsSDL(schema),
   });
 
   let currentDelay = delay;
   let currentOps = operations;
   let currentMocks = mocks;
 
-  cy.on("window:before:load", win => {
+  cy.on("window:before:load", (win) => {
     const originalFetch = win.fetch;
     function fetch(input: RequestInfo, init?: RequestInit) {
       if (typeof input !== "string") {
@@ -150,33 +155,35 @@ Cypress.Commands.add("mockGraphql", (options?: MockGraphQLOptions) => {
                 new Response(
                   JSON.stringify({
                     data: {},
-                    errors: [rootValue]
-                  })
-                )
+                    errors: [rootValue],
+                  }),
+                ),
             );
         }
 
-        addMockFunctionsToSchema({
+        const mocks = resolveMocks({
+          ...commonMocks,
+          ...currentMocks,
+        });
+
+        const schemaWithMocks = addMocksToSchema({
           schema: executableSchema,
-          mocks: resolveMocks({
-            ...commonMocks,
-            ...currentMocks,
-          }),
+          mocks,
         });
 
         return graphql({
-          schema: executableSchema,
+          schema: schemaWithMocks,
           source: query,
           variableValues: variables,
           operationName,
-          rootValue
+          rootValue,
         })
           .then(wait(currentDelay))
           .then((data: any) => new Response(JSON.stringify(data)));
       }
       return originalFetch(input, init);
     }
-    cy.stub(win, "fetch", fetch).as("fetchStub");
+    cy.stub(win, "fetch").callsFake(fetch);
   });
   //
   cy.wrap({
@@ -184,17 +191,17 @@ Cypress.Commands.add("mockGraphql", (options?: MockGraphQLOptions) => {
       currentDelay = options.delay || 0;
       currentOps = {
         ...currentOps,
-        ...options.operations
+        ...options.operations,
       };
       if (options.mocks) {
         currentMocks = mergeMocks(currentMocks, options.mocks);
       }
-    }
+    },
   }).as(getAlias(mergedOptions));
 });
 
-Cypress.Commands.add("mockGraphqlOps", (options: SetOperationsOpts) => {
-  cy.get(`@${getAlias(options)}`).invoke("setOperations" as any, options);
+Cypress.Commands.add("mockGraphqlOps", (options?: SetOperationsOpts) => {
+  cy.get(`@${getAlias(options || {})}`).invoke("setOperations" as any, options);
 });
 
 const getAlias = ({ name, endpoint }: { name?: string; endpoint?: string }) => {
@@ -214,11 +221,14 @@ function schemaAsSDL(schema: string | string[] | IntrospectionQuery) {
 }
 
 function resolveMocks(mocks: CypressMockBaseTypes) {
-  const asFunction = (m: any) => m instanceof Function ? m : () => m;
+  const asFunction = (m: any) => (m instanceof Function ? m : () => m);
   return objectMap(mocks, asFunction);
 }
 
-function mergeMocks(currentMocks: CypressMockBaseTypes, mocks: CypressMockBaseTypes) {
+function mergeMocks(
+  currentMocks: CypressMockBaseTypes,
+  mocks: CypressMockBaseTypes,
+) {
   return {
     ...currentMocks,
     ...objectMap(mocks, (value: any, key: string) => {
@@ -233,20 +243,20 @@ function mergeMocks(currentMocks: CypressMockBaseTypes, mocks: CypressMockBaseTy
 }
 
 function isObject(what: any) {
-  return typeof what === 'object' && !Array.isArray(what);
+  return typeof what === "object" && !Array.isArray(what);
 }
 
 function objectMap(object: any, mapFn: Function) {
-  return Object.keys(object).reduce(function(result, key) {
-    result[key] = mapFn(object[key], key)
-    return result
-  }, {} as any)
+  return Object.keys(object).reduce(function (result, key) {
+    result[key] = mapFn(object[key], key);
+    return result;
+  }, {} as any);
 }
 
 function getRootValue(
   operations: Partial<CypressMockOperationTypes>,
   operationName: Extract<keyof CypressMockOperationTypes, string>,
-  variables: any
+  variables: any,
 ) {
   if (!operationName || !operations[operationName]) {
     return {};

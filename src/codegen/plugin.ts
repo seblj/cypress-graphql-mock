@@ -1,4 +1,5 @@
-import { CodegenPlugin, toPascalCase } from "@graphql-codegen/plugin-helpers";
+import { CodegenPlugin } from "@graphql-codegen/plugin-helpers";
+import { pascalCase } from "change-case";
 import {
   isExecutableDefinitionNode,
   Kind,
@@ -7,8 +8,20 @@ import {
   isObjectType,
   isUnionType,
   OperationTypeNode,
-  isEnumType
+  isEnumType,
 } from "graphql";
+
+function toPascalCase(str: string) {
+  if (str.charAt(0) === "_") {
+    return str.replace(
+      /^(_*)(.*)/,
+      (_match, underscorePrefix, typeName) =>
+        `${underscorePrefix}${pascalCase(typeName || "")}`,
+    );
+  }
+
+  return pascalCase(str || "");
+}
 
 export = {
   plugin(schema, documents, config) {
@@ -16,15 +29,15 @@ export = {
     let tPrefix = "";
     if (config && config.typesFile) {
       additionalImports += `import * as t from ${JSON.stringify(
-        config.typesFile
+        config.typesFile,
       )}`;
       tPrefix = "t.";
     }
     const allTypes = schema.getTypeMap();
     const documentOperations: { name: string; op: OperationTypeNode }[] = [];
     const MockOperationTypes: string[] = [];
-    documents.forEach(d =>
-      d.content.definitions.forEach(node => {
+    documents.forEach((d) =>
+      d.document?.definitions.forEach((node) => {
         if (
           isExecutableDefinitionNode(node) &&
           node.kind === Kind.OPERATION_DEFINITION &&
@@ -32,20 +45,20 @@ export = {
         ) {
           documentOperations.push({
             name: node.name.value,
-            op: node.operation
+            op: node.operation,
           });
         }
-      })
+      }),
     );
-    documentOperations.forEach(o => {
+    documentOperations.forEach((o) => {
       const typeVal = `${tPrefix}${toPascalCase(`${o.name}_${o.op}`)}`;
       MockOperationTypes.push(
-        `${o.name}: ErrorOrValue<${typeVal} | PartialDeep<${typeVal}>>`
+        `${o.name}: ErrorOrValue<${typeVal} | PartialDeep<${typeVal}>>`,
       );
     });
     const MockBaseTypesBody = Object.keys(allTypes)
       .sort()
-      .map(typeName => {
+      .map((typeName) => {
         if (typeName.startsWith("__")) {
           return "";
         }
@@ -57,7 +70,7 @@ export = {
         } else if (isInterfaceType(type) || isUnionType(type)) {
           typeVal = schema
             .getPossibleTypes(type)
-            .map(t => `TypeMock<${tPrefix}${t.name}>`)
+            .map((t) => `TypeMock<${tPrefix}${t.name}>`)
             .join(" | ");
         } else if (isObjectType(type)) {
           typeVal = `TypeMock<${tPrefix}${pascalName}>`;
@@ -99,5 +112,5 @@ declare global {
   }
 }
 `;
-  }
+  },
 } as CodegenPlugin;

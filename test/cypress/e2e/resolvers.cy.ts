@@ -2,7 +2,7 @@ import { GraphQLError } from "graphql";
 
 describe("Resolvers", () => {
   beforeEach(() => {
-    cy.task("getSchema").then(schema => {
+    cy.task("getSchema").then((schema) => {
       cy.mockGraphql({ schema });
     });
   });
@@ -13,10 +13,10 @@ describe("Resolvers", () => {
         getUser: {
           user: {
             id: 1,
-            email: "Email"
-          }
-        }
-      }
+            email: "Email",
+          },
+        },
+      },
     });
 
     cy.visit("/");
@@ -29,9 +29,9 @@ describe("Resolvers", () => {
           name: "Test User",
           email: "Email",
           createdAt: new Date("2019-01-01T00:00:00.000Z"),
-          __typename: "User"
-        }
-      })
+          __typename: "User",
+        },
+      }),
     );
   });
 
@@ -56,17 +56,17 @@ describe("Resolvers", () => {
           name: "Sheila Kohler",
           email: "Adrien_Toy@yahoo.com",
           createdAt: new Date("2019-01-01T00:00:00.000Z"),
-          __typename: "User"
-        }
-      })
+          __typename: "User",
+        },
+      }),
     );
   });
 
   it("Should throw graphql error", () => {
     cy.mockGraphqlOps({
       operations: {
-        getUser: new GraphQLError("Some message")
-      }
+        getUser: new GraphQLError("Some message"),
+      },
     });
 
     cy.visit("/");
@@ -77,8 +77,8 @@ describe("Resolvers", () => {
         JSON.stringify({
           graphQLErrors: [{ message: "Some message" }],
           networkError: null,
-          message: "GraphQL error: Some message"
-        })
+          message: "GraphQL error: Some message",
+        }),
     );
   });
 
@@ -90,10 +90,10 @@ describe("Resolvers", () => {
           user: {
             id: 1,
             name: "Name",
-            email: "Email"
-          }
-        }
-      }
+            email: "Email",
+          },
+        },
+      },
     });
 
     cy.visit("/");
