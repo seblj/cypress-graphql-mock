@@ -14,6 +14,7 @@ export interface SetOperationsOpts {
   /* Operations object. Make sure that mocks must not be wrapped with `data` property */
   operations?: Partial<CypressMockOperationTypes>;
   mocks?: CypressMockBaseTypes;
+  resolvers?: any;
   /* Delay for stubbed responses (in ms) */
   delay?: number;
 }
@@ -113,6 +114,7 @@ Cypress.Commands.add("mockGraphql", (options?: MockGraphQLOptions) => {
     delay = 0,
     operations = {},
     mocks = {},
+    resolvers = {},
     schema = undefined,
   } = mergedOptions;
 
@@ -129,6 +131,7 @@ Cypress.Commands.add("mockGraphql", (options?: MockGraphQLOptions) => {
   let currentDelay = delay;
   let currentOps = operations;
   let currentMocks = mocks;
+  let currentResolvers = resolvers;
 
   cy.on("window:before:load", (win) => {
     const originalFetch = win.fetch;
@@ -169,6 +172,7 @@ Cypress.Commands.add("mockGraphql", (options?: MockGraphQLOptions) => {
         const schemaWithMocks = addMocksToSchema({
           schema: executableSchema,
           mocks,
+          resolvers: currentResolvers,
         });
 
         return graphql({
@@ -193,6 +197,10 @@ Cypress.Commands.add("mockGraphql", (options?: MockGraphQLOptions) => {
         ...currentOps,
         ...options.operations,
       };
+      if (options.resolvers) {
+        currentResolvers = mergeMocks(currentResolvers, options.resolvers);
+      }
+
       if (options.mocks) {
         currentMocks = mergeMocks(currentMocks, options.mocks);
       }
