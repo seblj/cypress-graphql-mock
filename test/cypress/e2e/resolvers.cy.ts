@@ -1,12 +1,7 @@
 import { GraphQLError } from "graphql";
+import "../../../dist";
 
 describe("Resolvers", () => {
-  beforeEach(() => {
-    cy.task("getSchema").then((schema) => {
-      cy.mockGraphql({ schema });
-    });
-  });
-
   it("Should mock getUser", () => {
     cy.mockGraphqlOps({
       operations: {

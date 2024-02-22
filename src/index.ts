@@ -28,11 +28,11 @@ export interface GQLRequestPayload {
   variables: any;
 }
 
-let commonMocks: any = null;
-
 declare global {
+  // eslint-disable-next-line @typescript-eslint/no-empty-interface
   interface CypressMockBaseTypes {}
-  interface CypressMockOperationTypes extends Record<string, any> {}
+  type CypressMockOperationTypes = Record<string, any>;
+  // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace Cypress {
     interface Chainable {
       mockGraphql(options: MockGraphQLOptions): Cypress.Chainable;
@@ -47,21 +47,6 @@ const wait =
     new Promise<T>((resolve) =>
       setTimeout(() => resolve(response as T), timeout),
     );
-
-/**
- * Add .baseGraphqlMocks() to the Cypress chain. Used when we want to set the
- * mocks as common between multiple commands.
- */
-export const setBaseGraphqlMocks = (mocks: CypressMockBaseTypes) => {
-  if (!commonMocks) {
-    commonMocks = mocks;
-  } else {
-    throw new Error(
-      `setBaseGraphqlMocks may only be called once, already called.`,
-    );
-  }
-  return mocks;
-};
 
 /**
  * Adds a .mockGraphql() and .mockGraphqlOps() methods to the cypress chain.
@@ -92,14 +77,7 @@ export const setBaseGraphqlMocks = (mocks: CypressMockBaseTypes) => {
  * })
  */
 Cypress.Commands.add("mockGraphql", (options: MockGraphQLOptions) => {
-  const {
-    endpoint = "/graphql",
-    delay = 0,
-    operations = {},
-    mocks = {},
-    resolvers = {},
-    schema = undefined,
-  } = options;
+  const { endpoint = "/graphql", schema = undefined } = options;
 
   if (!schema) {
     throw new Error(
@@ -111,10 +89,10 @@ Cypress.Commands.add("mockGraphql", (options: MockGraphQLOptions) => {
     typeDefs: schemaAsSDL(schema),
   });
 
-  let currentDelay = delay;
-  let currentOps = operations;
-  let currentMocks = mocks;
-  let currentResolvers = resolvers;
+  let currentDelay = options.delay || 0;
+  let currentOps = options.operations || {};
+  let currentMocks = options.mocks || {};
+  let currentResolvers = options.resolvers || {};
 
   cy.on("window:before:load", (win) => {
     const originalFetch = win.fetch;
@@ -147,10 +125,7 @@ Cypress.Commands.add("mockGraphql", (options: MockGraphQLOptions) => {
             );
         }
 
-        const mocks = resolveMocks({
-          ...commonMocks,
-          ...currentMocks,
-        });
+        const mocks = resolveMocks(currentMocks);
 
         const schemaWithMocks = addMocksToSchema({
           schema: executableSchema,
@@ -174,18 +149,21 @@ Cypress.Commands.add("mockGraphql", (options: MockGraphQLOptions) => {
   });
   //
   cy.wrap({
-    setOperations: (options: SetOperationsOpts) => {
-      currentDelay = options.delay || 0;
+    setOperations: (operationOptions: SetOperationsOpts) => {
+      currentDelay = operationOptions.delay || 0;
       currentOps = {
         ...currentOps,
-        ...options.operations,
+        ...operationOptions.operations,
       };
-      if (options.resolvers) {
-        currentResolvers = mergeMocks(currentResolvers, options.resolvers);
+      if (operationOptions.resolvers) {
+        currentResolvers = mergeMocks(
+          currentResolvers,
+          operationOptions.resolvers,
+        );
       }
 
-      if (options.mocks) {
-        currentMocks = mergeMocks(currentMocks, options.mocks);
+      if (operationOptions.mocks) {
+        currentMocks = mergeMocks(currentMocks, operationOptions.mocks);
       }
     },
   }).as(getAlias(options));
@@ -237,7 +215,7 @@ function isObject(what: any) {
   return typeof what === "object" && !Array.isArray(what);
 }
 
-function objectMap(object: any, mapFn: Function) {
+function objectMap(object: any, mapFn: (val: any, key: string) => any) {
   return Object.keys(object).reduce(function (result, key) {
     result[key] = mapFn(object[key], key);
     return result;
