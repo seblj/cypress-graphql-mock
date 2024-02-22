@@ -36,6 +36,7 @@
   "dependencies": {
     "@graphql-tools/mock": "^9.0.0",
     "@graphql-tools/schema": "^10.0.2",
+    "@graphql-tools/utils": "^10.0.13",
     "tslib": "^2.6.2"
   },
   "peerDependencies": {

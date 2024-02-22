@@ -2,7 +2,8 @@
 import { graphql, IntrospectionQuery, GraphQLError } from "graphql";
 import { buildClientSchema, printSchema } from "graphql";
 import { makeExecutableSchema } from "@graphql-tools/schema";
-import { addMocksToSchema } from "@graphql-tools/mock";
+import { IMockStore, IMocks, addMocksToSchema } from "@graphql-tools/mock";
+import { IResolvers } from "@graphql-tools/utils";
 
 export interface MockGraphQLOptions extends SetOperationsOpts {
   schema?: string | string[] | IntrospectionQuery;
@@ -13,8 +14,10 @@ export interface SetOperationsOpts {
   endpoint?: string;
   /* Operations object. Make sure that mocks must not be wrapped with `data` property */
   operations?: Partial<CypressMockOperationTypes>;
-  mocks?: CypressMockBaseTypes;
-  resolvers?: any;
+  mocks?: IMocks<IResolvers>;
+  resolvers?:
+    | Partial<IResolvers>
+    | ((store: IMockStore) => Partial<IResolvers>);
   /* Delay for stubbed responses (in ms) */
   delay?: number;
 }
@@ -26,15 +29,14 @@ export interface GQLRequestPayload {
 }
 
 let commonMocks: any = null;
-let commonOptions: any = null;
 
 declare global {
   interface CypressMockBaseTypes {}
   interface CypressMockOperationTypes extends Record<string, any> {}
   namespace Cypress {
     interface Chainable {
-      mockGraphql(options?: MockGraphQLOptions): Cypress.Chainable;
-      mockGraphqlOps(options?: SetOperationsOpts): Cypress.Chainable;
+      mockGraphql(options: MockGraphQLOptions): Cypress.Chainable;
+      mockGraphqlOps(options: SetOperationsOpts): Cypress.Chainable;
     }
   }
 }
@@ -59,21 +61,6 @@ export const setBaseGraphqlMocks = (mocks: CypressMockBaseTypes) => {
     );
   }
   return mocks;
-};
-
-/**
- * Add .baseGraphqlMocks() to the Cypress chain. Used when we want to set the
- * mocks as common between multiple commands.
- */
-export const setBaseOperationOptions = (options: CypressMockBaseTypes) => {
-  if (!commonOptions) {
-    commonOptions = options;
-  } else {
-    throw new Error(
-      `setBaseOperationOptions may only be called once, already called.`,
-    );
-  }
-  return options;
 };
 
 /**
@@ -104,11 +91,7 @@ export const setBaseOperationOptions = (options: CypressMockBaseTypes) => {
  *   }
  * })
  */
-Cypress.Commands.add("mockGraphql", (options?: MockGraphQLOptions) => {
-  const mergedOptions = {
-    ...(commonOptions || {}),
-    ...(options || {}),
-  };
+Cypress.Commands.add("mockGraphql", (options: MockGraphQLOptions) => {
   const {
     endpoint = "/graphql",
     delay = 0,
@@ -116,7 +99,7 @@ Cypress.Commands.add("mockGraphql", (options?: MockGraphQLOptions) => {
     mocks = {},
     resolvers = {},
     schema = undefined,
-  } = mergedOptions;
+  } = options;
 
   if (!schema) {
     throw new Error(
@@ -205,11 +188,11 @@ Cypress.Commands.add("mockGraphql", (options?: MockGraphQLOptions) => {
         currentMocks = mergeMocks(currentMocks, options.mocks);
       }
     },
-  }).as(getAlias(mergedOptions));
+  }).as(getAlias(options));
 });
 
-Cypress.Commands.add("mockGraphqlOps", (options?: SetOperationsOpts) => {
-  cy.get(`@${getAlias(options || {})}`).invoke("setOperations" as any, options);
+Cypress.Commands.add("mockGraphqlOps", (options: SetOperationsOpts) => {
+  cy.get(`@${getAlias(options)}`).invoke("setOperations" as any, options);
 });
 
 const getAlias = ({ name, endpoint }: { name?: string; endpoint?: string }) => {
